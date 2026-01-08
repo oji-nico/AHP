@@ -78,7 +78,14 @@
 // CONFIG
 const SECRET="cœur123"; // Code secret romantique et discret
 const START_DATE = "2026-02-01"; // Date de début personnalisée
-const firebaseConfig={apiKey:"VOTRE_API_KEY",authDomain:"VOTRE_PROJET.firebaseapp.com",projectId:"VOTRE_PROJET"};
+const firebaseConfig = {
+  apiKey: "...",
+  authDomain: "...firebaseapp.com",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
+};
 firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
 
