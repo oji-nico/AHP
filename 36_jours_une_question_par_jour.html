@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>36 jours, toi & moi</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{--bg:#f6f3f4;--card:#fff;--text:#2e2e2e;--accent:#e75480}
+    body.night{--bg:#0f0f14;--card:#1c1c24;--text:#f2f2f2;--accent:#ff7aa2}
+    body{font-family:'Georgia','Times New Roman',serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
+    .card{background:var(--card);max-width:700px;padding:2.4rem;border-radius:28px;box-shadow:0 22px 55px rgba(0,0,0,.18)}
+    h1,h2{font-family:'Palatino Linotype','Book Antiqua',Palatino,serif}
+    .day{letter-spacing:.08em;text-transform:uppercase;opacity:.6;font-size:.75rem}
+    .proverb{font-style:italic;opacity:.8;margin:1.2rem 0}
+    .song{margin:1.2rem 0;padding:1rem;border-radius:18px;background:rgba(231,84,128,.07);display:flex;justify-content:space-between;align-items:center}
+    .song span{display:block;font-size:.85rem;opacity:.7}
+    .song a{font-size:.85rem;text-decoration:none;color:var(--accent)}
+    textarea{width:100%;min-height:110px;border-radius:18px;padding:1rem;border:1px solid #ddd;margin:.6rem 0;font-family:inherit}
+    button{background:var(--accent);color:#fff;border:none;padding:.7rem 1.6rem;border-radius:999px;margin:.3rem;font-family:inherit;cursor:pointer}
+    .hidden{display:none}
+    footer{margin-top:1.4rem;font-size:.75rem;opacity:.55;text-align:center}
+
+    @media print{
+      body{background:#fff}
+      .card{box-shadow:none;border-radius:0;max-width:100%}
+      button,.song a,input{display:none}
+      textarea{border:none;min-height:auto;padding:0}
+      h1{font-size:28pt}
+      h2{font-size:20pt}
+      .proverb{font-size:12pt}
+      .day{font-size:9pt}
+      footer{page-break-after:always}
+    }
+  </style>
+</head>
+<body>
+
+<div class="card" id="lock">
+  <h1>36 jours, toi & moi, Ahlem</h1>
+  <p>Un jour. Une question. Une émotion.</p>
+  <p style="opacity:.7; font-size:.9rem;">Texte d'accompagnement : "Voici un espace doux et secret pour que nous partagions un peu de nous, chaque jour."</p>
+  <input id="code" type="password" placeholder="Code secret" />
+  <br><br><button onclick="unlock()">Entrer</button>
+</div>
+
+<div class="card hidden" id="app">
+  <div class="day" id="day"></div>
+  <h2 id="question"></h2>
+  <div class="proverb" id="proverb"></div>
+
+  <div class="song">
+    <div>
+      🎵 <strong id="songTitle"></strong>
+      <span id="songArtist"></span>
+    </div>
+    <a id="songLink" target="_blank">écouter</a>
+  </div>
+
+  <textarea id="me" placeholder="Ma réponse"></textarea>
+  <textarea id="her" placeholder="Sa réponse"></textarea>
+
+  <button onclick="save()">Enregistrer</button>
+  <button onclick="toggleNight()">🌙</button>
+  <button onclick="exportPDF()">📄 Souvenir</button>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// CONFIG
+const SECRET="cœur123"; // Code secret romantique et discret
+const START_DATE = "2026-02-01"; // Date de début personnalisée
+const firebaseConfig={apiKey:"VOTRE_API_KEY",authDomain:"VOTRE_PROJET.firebaseapp.com",projectId:"VOTRE_PROJET"};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+
+function unlock(){if(code.value===SECRET){localStorage.u=1;lock.classList.add('hidden');app.classList.remove('hidden');init();}}
+if(localStorage.u){lock.classList.add('hidden');app.classList.remove('hidden');init();}
+
+// 36 JOURS – QUESTIONS / PROVERBES / CHANSONS
+const data=[ /* toutes les 36 questions et chansons ici */ ];
+
+let dayIndex=0;
+function init(){
+ let start=localStorage.s||new Date(START_DATE).getTime();localStorage.s=start;
+ dayIndex=Math.min(Math.floor((Date.now()-start)/86400000),35);
+ day.innerText=`Jour ${dayIndex+1} / 36`;
+ question.innerText=data[dayIndex].q;
+ proverb.innerText=`“${data[dayIndex].p}”`;
+ songTitle.innerText=data[dayIndex].s;
+ songArtist.innerText=data[dayIndex].a;
+ songLink.href=data[dayIndex].y;
+ footer.innerText=dayIndex===35?"Merci d’avoir pris le temps. Avec moi." : "Un jour. Une question. Ensemble.";
+
+ db.collection('days').doc('d'+dayIndex).onSnapshot(d=>{if(d.exists){me.value=d.data().me||'';her.value=d.data().her||'';}});
+}
+
+function save(){db.collection('days').doc('d'+dayIndex).set({me:me.value,her:her.value});}
+function toggleNight(){document.body.classList.toggle('night');}
+
+async function exportPDF(){
+ const { jsPDF } = window.jspdf;
+ const pdf=new jsPDF();
+ let y=10;
+ pdf.setFontSize(16);
+ pdf.text("36 jours, toi & moi",10,y);y+=10;
+
+ for(let i=0;i<data.length;i++){
+  const doc=await db.collection('days').doc('d'+i).get();
+  if(y>260){pdf.addPage();y=10;}
+  pdf.setFontSize(12);
+  pdf.text(`Jour ${i+1}`,10,y);y+=6;
+  pdf.text(data[i].q,10,y);y+=6;
+  pdf.setFontSize(10);
+  pdf.text(`« ${data[i].p} »`,10,y);y+=6;
+  pdf.text(`🎵 ${data[i].s} – ${data[i].a}`,10,y);y+=6;
+  if(doc.exists){
+    pdf.text(`Moi : ${doc.data().me||""}`,10,y);y+=6;
+    pdf.text(`Elle : ${doc.data().her||""}`,10,y);y+=8;
+  }
+ }
+
+ pdf.addPage();
+ pdf.setFontSize(14);
+ pdf.text("Merci d’avoir pris le temps. Avec moi.",20,140);
+ pdf.save("36-jours-toi-et-moi.pdf");
+}
+</script>
+</body>
+</html>
