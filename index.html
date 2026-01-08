@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>36 jours, toi & moi</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{--bg:#f6f3f4;--card:#fff;--text:#2e2e2e;--accent:#e75480}
+    body.night{--bg:#0f0f14;--card:#1c1c24;--text:#f2f2f2;--accent:#ff7aa2}
+    body{font-family:'Georgia','Times New Roman',serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
+    .card{background:var(--card);max-width:700px;padding:2.4rem;border-radius:28px;box-shadow:0 22px 55px rgba(0,0,0,.18)}
+    h1,h2{font-family:'Palatino Linotype','Book Antiqua',Palatino,serif}
+    .day{letter-spacing:.08em;text-transform:uppercase;opacity:.6;font-size:.75rem}
+    .proverb{font-style:italic;opacity:.8;margin:1.2rem 0}
+    .song{margin:1.2rem 0;padding:1rem;border-radius:18px;background:rgba(231,84,128,.07);display:flex;justify-content:space-between;align-items:center}
+    .song span{display:block;font-size:.85rem;opacity:.7}
+    .song a{font-size:.85rem;text-decoration:none;color:var(--accent)}
+    textarea{width:100%;min-height:110px;border-radius:18px;padding:1rem;border:1px solid #ddd;margin:.6rem 0;font-family:inherit}
+    button{background:var(--accent);color:#fff;border:none;padding:.7rem 1.6rem;border-radius:999px;margin:.3rem;font-family:inherit;cursor:pointer}
+    .hidden{display:none}
+    footer{margin-top:1.4rem;font-size:.75rem;opacity:.55;text-align:center}
+
+    @media print{
+      body{background:#fff}
+      .card{box-shadow:none;border-radius:0;max-width:100%}
+      button,.song a,input{display:none}
+      textarea{border:none;min-height:auto;padding:0}
+      h1{font-size:28pt}
+      h2{font-size:20pt}
+      .proverb{font-size:12pt}
+      .day{font-size:9pt}
+      footer{page-break-after:always}
+    }
+  </style>
+</head>
+<body>
+
+<div class="card" id="lock">
+  <h1>36 jours, toi & moi, Ahlem</h1>
+  <p>Un jour. Une question. Une émotion.</p>
+  <p style="opacity:.7; font-size:.9rem;">Texte d'accompagnement : "Voici un espace doux et secret pour que nous partagions un peu de nous, chaque jour."</p>
+  <input id="code" type="password" placeholder="Code secret" />
+  <br><br><button onclick="unlock()">Entrer</button>
+</div>
+
+<div class="card hidden" id="app">
+  <div class="day" id="day"></div>
+  <h2 id="question"></h2>
+  <div class="proverb" id="proverb"></div>
+
+  <div class="song">
+    <div>
+      🎵 <strong id="songTitle"></strong>
+      <span id="songArtist"></span>
+    </div>
+    <a id="songLink" target="_blank">écouter</a>
+  </div>
+
+  <textarea id="me" placeholder="Ma réponse"></textarea>
+  <textarea id="her" placeholder="Sa réponse"></textarea>
+
+  <button onclick="save()">Enregistrer</button>
+  <button onclick="toggleNight()">🌙</button>
+  <button onclick="exportPDF()">📄 Souvenir</button>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// CONFIG
+const SECRET="cœur123"; // Code secret romantique et discret
+const START_DATE = "2026-02-01"; // Date de début personnalisée
+const firebaseConfig = {
+  apiKey: "...",
+  authDomain: "...firebaseapp.com",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+
+function unlock(){if(code.value===SECRET){localStorage.u=1;lock.classList.add('hidden');app.classList.remove('hidden');init();}}
+if(localStorage.u){lock.classList.add('hidden');app.classList.remove('hidden');init();}
+
+// 36 JOURS – QUESTIONS / PROVERBES / CHANSONS
+const data = [
+{q:"Quelle part de toi aimerais-tu que je découvre en premier ?",p:"Ce qui se partage doucement s’ancre profondément.",s:"La vie en rose",a:"Édith Piaf",y:"https://www.youtube.com/watch?v=kFzViYkZAz4"},
+{q:"Quel silence te fait du bien ?",p:"Le silence est parfois la plus belle conversation.",s:"Je te laisserai des mots",a:"Patrick Bruel",y:"https://www.youtube.com/watch?v=5wE8c7oYHf8"},
+{q:"Qu’est-ce qui te fait te sentir en sécurité avec quelqu’un ?",p:"La confiance se construit quand on peut être fragile.",s:"Fix You",a:"Coldplay",y:"https://www.youtube.com/watch?v=k4V3Mo61fJM"},
+{q:"Quel souvenir aimerais-tu me raconter un soir calme ?",p:"Les souvenirs sont des ponts entre les cœurs.",s:"Ne me quitte pas",a:"Jacques Brel",y:"https://www.youtube.com/watch?v=Vz6r0TP4FBI"},
+{q:"Qu’est-ce qui te touche sans faire de bruit ?",p:"La douceur n’a pas besoin de voix.",s:"River",a:"Leon Bridges",y:"https://www.youtube.com/watch?v=0Hegd4xNfRo"},
+{q:"Quelle émotion te traverse le plus ces temps-ci ?",p:"Nommer une émotion, c’est déjà l’apaiser.",s:"Holocene",a:"Bon Iver",y:"https://www.youtube.com/watch?v=TWcyIpul8OE"},
+{q:"Qu’aimerais-tu qu’on construise doucement ?",p:"Les choses durables prennent leur temps.",s:"Bloom",a:"The Paper Kites",y:"https://www.youtube.com/watch?v=8inJtTG_DuU"},
+{q:"Quand te sens-tu vraiment à ta place ?",p:"Être à sa place, c’est être soi.",s:"Vienna",a:"Billy Joel",y:"https://www.youtube.com/watch?v=wccRif2DaGs"},
+{q:"Qu’est-ce qui te fait rester quand tout pourrait fuir ?",p:"Ce qui compte vraiment retient le cœur.",s:"Stay",a:"Rihanna",y:"https://www.youtube.com/watch?v=JF8BRvqGCNs"},
+{q:"Quelle promesse aimerais-tu entendre sans la demander ?",p:"Les promesses silencieuses sont les plus sincères.",s:"All of Me",a:"John Legend",y:"https://www.youtube.com/watch?v=450p7goxZqg"},
+
+{q:"Qu’est-ce que tu apprécies dans nos échanges ?",p:"Les mots justes créent des ponts invisibles.",s:"Yellow",a:"Coldplay",y:"https://www.youtube.com/watch?v=yKNxeF4KMsY"},
+{q:"Quelle part de toi est encore protégée ?",p:"On protège ce qui compte.",s:"Skinny Love",a:"Bon Iver",y:"https://www.youtube.com/watch?v=ssdgFoHLwnk"},
+{q:"Qu’est-ce qui te rassure chez moi ?",p:"La présence apaise plus que les promesses.",s:"Make You Feel My Love",a:"Adele",y:"https://www.youtube.com/watch?v=0put0_a--Ng"},
+{q:"Quelle douceur aimerais-tu recevoir plus souvent ?",p:"La douceur est une force tranquille.",s:"Better Together",a:"Jack Johnson",y:"https://www.youtube.com/watch?v=RSsTx2TBrww"},
+{q:"Quel regard te fait te sentir vue ?",p:"Être vu, c’est être reconnu.",s:"Human",a:"Rag'n'Bone Man",y:"https://www.youtube.com/watch?v=L3wKzyIN1yk"},
+{q:"Qu’est-ce que l’amour calme signifie pour toi ?",p:"L’amour n’est pas toujours bruyant.",s:"Come Away With Me",a:"Norah Jones",y:"https://www.youtube.com/watch?v=lBJ1r_S3oL8"},
+{q:"Quand te sens-tu libre d’être fragile ?",p:"La fragilité partagée crée la force.",s:"Gravity",a:"John Mayer",y:"https://www.youtube.com/watch?v=Fo4746YzSpc"},
+{q:"Quelle émotion partagée te manque parfois ?",p:"Partager allège le cœur.",s:"The Night We Met",a:"Lord Huron",y:"https://www.youtube.com/watch?v=KtlgYxa6BMU"},
+{q:"Qu’aimerais-tu que je comprenne mieux de toi ?",p:"Comprendre, c’est aimer mieux.",s:"Chasing Cars",a:"Snow Patrol",y:"https://www.youtube.com/watch?v=GemKqzILV4w"},
+{q:"Quel moment simple aimerais-tu vivre à deux ?",p:"La simplicité rapproche.",s:"Banana Pancakes",a:"Jack Johnson",y:"https://www.youtube.com/watch?v=OkyrIRyrRdY"},
+
+{q:"Qu’est-ce qui te donne envie de continuer ?",p:"Ce qui fait sens donne de l’élan.",s:"Keep Holding On",a:"Avril Lavigne",y:"https://www.youtube.com/watch?v=ek6gYw3Cj6k"},
+{q:"Quelle confiance aimerais-tu installer ?",p:"La confiance est un choix quotidien.",s:"A Thousand Years",a:"Christina Perri",y:"https://www.youtube.com/watch?v=rtOvBOTyX00"},
+{q:"Qu’est-ce qui te fait sourire sans raison ?",p:"Les sourires spontanés sont sincères.",s:"I'm Yours",a:"Jason Mraz",y:"https://www.youtube.com/watch?v=EkHTsc9PU2A"},
+{q:"Quel lien aimerais-tu renforcer ?",p:"Les liens se nourrissent d’attention.",s:"Say You Won't Let Go",a:"James Arthur",y:"https://www.youtube.com/watch?v=0yW7w8F2TVA"},
+{q:"Qu’est-ce que tu accueillerais sans peur ?",p:"Le courage commence par l’accueil.",s:"Brave",a:"Sara Bareilles",y:"https://www.youtube.com/watch?v=QUQsqBqxoR4"},
+{q:"Quelle certitude aimerais-tu ressentir ?",p:"La certitude apaise l’âme.",s:"Halo",a:"Beyoncé",y:"https://www.youtube.com/watch?v=bnVUHWCynig"},
+{q:"Qu’est-ce que tu n’as jamais pris le temps de dire ?",p:"Les mots retenus attendent leur heure.",s:"Let It Be",a:"The Beatles",y:"https://www.youtube.com/watch?v=QDYfEBY9NM4"},
+{q:"Quel futur te rassure ?",p:"Imaginer rassure.",s:"Home",a:"Edward Sharpe",y:"https://www.youtube.com/watch?v=DHEOF_rcND8"},
+{q:"Qu’est-ce qui te fait te sentir choisie ?",p:"Être choisi apaise le cœur.",s:"Adore You",a:"Harry Styles",y:"https://www.youtube.com/watch?v=VF-r5TtlT9w"},
+{q:"Quelle émotion aimerais-tu partager plus souvent ?",p:"Partager rapproche.",s:"Perfect",a:"Ed Sheeran",y:"https://www.youtube.com/watch?v=2Vv-BfVoq4g"},
+{q:"Qu’est-ce que tu aimerais qu’on protège ensemble ?",p:"Protéger, c’est aimer.",s:"Stand By Me",a:"Ben E. King",y:"https://www.youtube.com/watch?v=hwZNL7QVJjE"},
+{q:"Quel silence aimerais-tu qu’on respecte ?",p:"Le silence est aussi un langage.",s:"Silence",a:"Delerium",y:"https://www.youtube.com/watch?v=6PPC7s2_Qh8"},
+{q:"Qu’est-ce que tu apprécies dans la lenteur ?",p:"La lenteur révèle l’essentiel.",s:"Slow Dancing in a Burning Room",a:"John Mayer",y:"https://www.youtube.com/watch?v=IfFi4Q7ueA8"},
+{q:"Quelle présence te fait du bien ?",p:"La présence est un cadeau.",s:"River",a:"Joni Mitchell",y:"https://www.youtube.com/watch?v=OLHxxBTl71I"},
+{q:"Qu’aimerais-tu promettre sans pression ?",p:"Les promesses libres sont sincères.",s:"I Won't Give Up",a:"Jason Mraz",y:"https://www.youtube.com/watch?v=O1-4u9W-bns"},
+{q:"Qu’est-ce que tu aimerais construire avec moi ?",p:"Ce que l’on choisit ensemble mérite d’être vécu.",s:"Turning Page",a:"Sleeping At Last",y:"https://www.youtube.com/watch?v=G0l4Z5ZzJYg"}
+];
+
+
+let dayIndex=0;
+function init(){
+ let start=localStorage.s||new Date(START_DATE).getTime();localStorage.s=start;
+ dayIndex=Math.min(Math.floor((Date.now()-start)/86400000),35);
+ day.innerText=`Jour ${dayIndex+1} / 36`;
+ question.innerText=data[dayIndex].q;
+ proverb.innerText=`“${data[dayIndex].p}”`;
+ songTitle.innerText=data[dayIndex].s;
+ songArtist.innerText=data[dayIndex].a;
+ songLink.href=data[dayIndex].y;
+ footer.innerText=dayIndex===35?"Merci d’avoir pris le temps. Avec moi." : "Un jour. Une question. Ensemble.";
+
+ db.collection('days').doc('d'+dayIndex).onSnapshot(d=>{if(d.exists){me.value=d.data().me||'';her.value=d.data().her||'';}});
+}
+
+function save(){db.collection('days').doc('d'+dayIndex).set({me:me.value,her:her.value});}
+function toggleNight(){document.body.classList.toggle('night');}
+
+async function exportPDF(){
+ const { jsPDF } = window.jspdf;
+ const pdf=new jsPDF();
+ let y=10;
+ pdf.setFontSize(16);
+ pdf.text("36 jours, toi & moi",10,y);y+=10;
+
+ for(let i=0;i<data.length;i++){
+  const doc=await db.collection('days').doc('d'+i).get();
+  if(y>260){pdf.addPage();y=10;}
+  pdf.setFontSize(12);
+  pdf.text(`Jour ${i+1}`,10,y);y+=6;
+  pdf.text(data[i].q,10,y);y+=6;
+  pdf.setFontSize(10);
+  pdf.text(`« ${data[i].p} »`,10,y);y+=6;
+  pdf.text(`🎵 ${data[i].s} – ${data[i].a}`,10,y);y+=6;
+  if(doc.exists){
+    pdf.text(`Moi : ${doc.data().me||""}`,10,y);y+=6;
+    pdf.text(`Elle : ${doc.data().her||""}`,10,y);y+=8;
+  }
+ }
+
+ pdf.addPage();
+ pdf.setFontSize(14);
+ pdf.text("Merci d’avoir pris le temps. Avec moi.",20,140);
+ pdf.save("36-jours-toi-et-moi.pdf");
+}
+</script>
+</body>
+</html>
